@@ -24,11 +24,12 @@ export function getLenis() {
   return lenis
 }
 
-export function scrollToId(id: string) {
+export function scrollToId(id: string, immediate = false) {
   const el = document.getElementById(id)
   if (!el) return
-  if (lenis) lenis.scrollTo(el, { offset: 0, duration: 1.6 })
-  else el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth' })
+  if (lenis && immediate) lenis.resize()
+  if (lenis) lenis.scrollTo(el, immediate ? { offset: 0, immediate: true, force: true } : { offset: 0, duration: 1.6 })
+  else el.scrollIntoView({ behavior: reduced() || immediate ? 'auto' : 'smooth' })
 }
 
 export { gsap, ScrollTrigger }

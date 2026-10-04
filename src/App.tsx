@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useGSAP } from '@gsap/react'
-import { gsap, ScrollTrigger, startSmoothScroll, reduced, EASE, getLenis } from './motion'
+import { gsap, ScrollTrigger, startSmoothScroll, reduced, EASE, getLenis, scrollToId } from './motion'
+import { usePath } from './router'
 import Nav from './sections/Nav'
 import Hero from './sections/Hero'
 import Manifesto from './sections/Manifesto'
@@ -8,14 +9,56 @@ import Dons from './sections/Dons'
 import Tracklist from './sections/Tracklist'
 import Elenco from './sections/Elenco'
 import Filmes from './sections/Filmes'
+import LojaTeaser from './sections/LojaTeaser'
 import Contratar from './sections/Contratar'
 import Lightbox from './sections/Lightbox'
+import { CartProvider } from './shop/cart'
+import CartDrawer from './shop/CartDrawer'
+import ShopIndex from './shop/ShopIndex'
+import ProductPage from './shop/ProductPage'
+import Checkout from './shop/Checkout'
+import ShopFooter from './shop/ShopFooter'
 import type { Film } from './data'
 
+// The cinematic intro only plays when the visit starts on the home page.
+const LANDED_HOME = window.location.pathname === '/'
+
+function Home({ ready, onPlay }: { ready: boolean; onPlay: (f: Film) => void }) {
+  useEffect(() => {
+    const id = window.location.hash.slice(1)
+    if (!id) return
+    const jump = () => {
+      ScrollTrigger.refresh()
+      scrollToId(id, true)
+    }
+    const t1 = window.setTimeout(jump, 300)
+    const t2 = window.setTimeout(jump, 1100)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+    }
+  }, [])
+
+  return (
+    <main className="page">
+      <Hero ready={ready} />
+      <Manifesto />
+      <Dons />
+      <Tracklist />
+      <Elenco />
+      <Filmes onPlay={onPlay} />
+      <LojaTeaser />
+      <Contratar />
+    </main>
+  )
+}
+
 export default function App() {
-  const [introDone, setIntroDone] = useState(() => reduced())
+  const path = usePath()
+  const [introDone, setIntroDone] = useState(() => reduced() || !LANDED_HOME)
   const [film, setFilm] = useState<Film | null>(null)
   const introRef = useRef<HTMLDivElement>(null)
+  const first = useRef(true)
 
   useEffect(() => {
     startSmoothScroll()
@@ -34,6 +77,21 @@ export default function App() {
       document.documentElement.classList.remove('is-locked')
     }
   }, [introDone])
+
+  // New page: start at the top and let ScrollTrigger re-measure.
+  useLayoutEffect(() => {
+    if (first.current) {
+      first.current = false
+      return
+    }
+    getLenis()?.resize()
+    if (!window.location.hash) {
+      getLenis()?.scrollTo(0, { immediate: true, force: true })
+      window.scrollTo(0, 0)
+    }
+    const id = window.requestAnimationFrame(() => ScrollTrigger.refresh())
+    return () => window.cancelAnimationFrame(id)
+  }, [path])
 
   useGSAP(() => {
     if (introDone || !introRef.current) return
@@ -58,9 +116,23 @@ export default function App() {
       .to(q('.intro-inner'), { opacity: 0, filter: 'blur(10px)', duration: 0.45, ease: 'power2.in' }, '+=0.15')
   }, [])
 
+  let page: React.ReactNode
+  const shopMatch = path.match(/^\/loja(?:\/([^/]+))?\/?$/)
+  if (shopMatch) {
+    const sub = shopMatch[1]
+    page = (
+      <>
+        {!sub ? <ShopIndex /> : sub === 'checkout' ? <Checkout /> : <ProductPage slug={sub} />}
+        <ShopFooter />
+      </>
+    )
+  } else {
+    page = <Home ready={introDone} onPlay={setFilm} />
+  }
+
   return (
-    <>
-      {!introDone && (
+    <CartProvider>
+      {!introDone && path === '/' && (
         <div className="intro" ref={introRef} aria-hidden="true">
           <div className="intro-inner">
             <p className="intro-mask">
@@ -78,17 +150,10 @@ export default function App() {
         </div>
       )}
       <div className="grain" aria-hidden="true" />
-      <Nav />
-      <main className="page">
-        <Hero ready={introDone} />
-        <Manifesto />
-        <Dons />
-        <Tracklist />
-        <Elenco />
-        <Filmes onPlay={setFilm} />
-        <Contratar />
-      </main>
+      <Nav path={path} />
+      {page}
+      <CartDrawer />
       <Lightbox film={film} onClose={() => setFilm(null)} />
-    </>
+    </CartProvider>
   )
 }

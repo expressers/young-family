@@ -7,6 +7,7 @@ import '@fontsource/instrument-serif/400'
 import '@fontsource/instrument-serif/400-italic'
 import '@fontsource-variable/geist'
 import './index.css'
+import './shop/shop.css'
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
